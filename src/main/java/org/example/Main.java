@@ -19,7 +19,7 @@ public class Main {
 
     private static final HttpClient cliente = HttpClient.newHttpClient();
 
-    public static void main(String[] args) {
+    public static void main(String[] args) throws JSONException {
         JSONObject pokemonInfo;
         String nombrePokemon;
 
@@ -33,28 +33,9 @@ public class Main {
         }
     }
 
-    private static JSONObject solicitarPokemon(String nombrePokemon) {
+    private static JSONObject solicitarPokemon(String nombrePokemon) throws JSONException {
         String url = "https://pokeapi.co/api/v2/pokemon/" + nombrePokemon;
-        HttpRequest peticion = crearHttpRequest(url);
-
-        try {
-            HttpResponse<String> respuesta = cliente.send(peticion, HttpResponse.BodyHandlers.ofString());
-            if (respuesta.statusCode() == 200) {
-                return new JSONObject(respuesta.body());
-            } else {
-                System.out.println("No existe ese pokémon, por favor prueba con otro nombre.");
-            }
-        } catch (IOException | InterruptedException | JSONException e) {
-            System.err.println("Error durante la solicitud: " + e.getMessage());
-        }
-        return null;
-    }
-
-    private static HttpRequest crearHttpRequest(String url) {
-        return HttpRequest.newBuilder()
-                .uri(URI.create(url))
-                .GET()
-                .build();
+        return realizarSolicitudHTTP(url);
     }
 
     private static void mostrarInformacionPokemon(JSONObject pokemonInfo) {
@@ -82,13 +63,12 @@ public class Main {
         }
     }
 
-    private static String obtenerHabilidadTraducida(String urlHabilidad, String codigoIdioma) {
-        HttpRequest peticion = crearHttpRequest(urlHabilidad);
+    private static String obtenerHabilidadTraducida(String urlHabilidad, String codigoIdioma) throws JSONException {
+        JSONObject habilidadDetalles = realizarSolicitudHTTP(urlHabilidad);
+        if (habilidadDetalles == null) return "Traducción no encontrada";
 
         try {
-            HttpResponse<String> respuesta = cliente.send(peticion, HttpResponse.BodyHandlers.ofString());
-            JSONObject detallesHabilidad = new JSONObject(respuesta.body());
-            JSONArray arrayNombres = detallesHabilidad.getJSONArray("names");
+            JSONArray arrayNombres = habilidadDetalles.getJSONArray("names");
             for (int i = 0; i < arrayNombres.length(); i++) {
                 JSONObject entradaNombre = arrayNombres.getJSONObject(i);
                 JSONObject idioma = entradaNombre.getJSONObject("language");
@@ -97,22 +77,18 @@ public class Main {
                     return entradaNombre.getString("name");
                 }
             }
-        } catch (IOException | InterruptedException e) {
-            System.err.println("Error durante la solicitud de habilidad: " + e.getMessage());
         } catch (JSONException e) {
             System.err.println("Error al analizar JSON de habilidad: " + e.getMessage());
         }
         return "Traducción no encontrada";
     }
 
-    private static void mostrarPokemonConHabilidad(String urlHabilidad, String nombreHabilidadEnEspañol) {
-        HttpRequest peticion = crearHttpRequest(urlHabilidad);
+    private static void mostrarPokemonConHabilidad(String urlHabilidad, String nombreHabilidadEnEspañol) throws JSONException {
+        JSONObject detallesHabilidad = realizarSolicitudHTTP(urlHabilidad);
+        if (detallesHabilidad == null) return;
 
         try {
-            HttpResponse<String> respuesta = cliente.send(peticion, HttpResponse.BodyHandlers.ofString());
-            JSONObject detallesHabilidad = new JSONObject(respuesta.body());
             JSONArray pokemonArray = detallesHabilidad.getJSONArray("pokemon");
-
             System.out.println("\nLa habilidad \"" + nombreHabilidadEnEspañol + "\" la poseen los siguientes Pokémon:");
             for (int i = 0; i < pokemonArray.length(); i++) {
                 JSONObject pokemonEntry = pokemonArray.getJSONObject(i);
@@ -120,10 +96,26 @@ public class Main {
                 String pokemonName = pokemon.getString("name");
                 System.out.println("- " + pokemonName);
             }
-        } catch (IOException | InterruptedException e) {
-            System.err.println("Error durante la solicitud de habilidad: " + e.getMessage());
         } catch (JSONException e) {
             System.err.println("Error al analizar JSON de habilidad: " + e.getMessage());
         }
+    }
+
+    private static JSONObject realizarSolicitudHTTP(String url) throws JSONException {
+        HttpRequest peticion = HttpRequest.newBuilder()
+                .uri(URI.create(url))
+                .GET()
+                .build();
+        try {
+            HttpResponse<String> respuesta = cliente.send(peticion, HttpResponse.BodyHandlers.ofString());
+            if (respuesta.statusCode() == 200) {
+                return new JSONObject(respuesta.body());
+            } else {
+                System.out.println("No se pudo obtener información del servidor.");
+            }
+        } catch (IOException | InterruptedException e) {
+            System.err.println("Error de comunicación: " + e.getMessage());
+        }
+        return null;
     }
 }
